@@ -1,0 +1,318 @@
+﻿using System.IO;
+using System.Text;
+using System.Windows;
+using System.Windows.Media;
+using ICSharpCode.AvalonEdit.Highlighting;
+using LuaCleaner.Core;
+using LuaCleaner.IO;
+using LuaCleaner.UI.Highlighting;
+using CoreLanguage = LuaCleaner.Core.Language;
+using Microsoft.Win32;
+
+namespace LuaCleaner.UI;
+
+public partial class MainWindow : Window
+{
+    private string? _currentFilePath;
+    private string? _cleanedSource;
+    private Language _selectedLanguage = CoreLanguage.Luau;
+
+    public MainWindow()
+    {
+        InitializeComponent();
+        PopulateLanguageSelector();
+        ApplyHighlighting();
+        EditorOriginal.TextChanged += OnOriginalTextChanged;
+    }
+
+    private void PopulateLanguageSelector()
+    {
+        var languages = new[]
+        {
+            (CoreLanguage.Luau,       "ðŸŒ™ Lua / Luau"),
+            (CoreLanguage.Python,     "ðŸ Python"),
+            (CoreLanguage.JavaScript, "ðŸ“œ JavaScript"),
+            (CoreLanguage.TypeScript, "ðŸ“˜ TypeScript"),
+            (CoreLanguage.CSharp,     "ðŸ”· C#"),
+            (CoreLanguage.Sql,        "ðŸ—„ SQL"),
+        };
+
+        foreach (var (lang, label) in languages)
+            LanguageSelector.Items.Add(new LanguageItem(lang, label));
+
+        LanguageSelector.SelectedIndex = 0;
+        LanguageSelector.SelectionChanged += (_, _) =>
+        {
+            if (LanguageSelector.SelectedItem is LanguageItem item)
+            {
+                _selectedLanguage = item.Language;
+                ApplyHighlighting();
+                UpdateFileNameHints();
+            }
+        };
+    }
+
+    private void ApplyHighlighting()
+    {
+        var highlighting = HighlightingFactory.Build(_selectedLanguage);
+        EditorOriginal.SyntaxHighlighting = highlighting;
+        EditorClean.SyntaxHighlighting = highlighting;
+    }
+
+    private void UpdateFileNameHints()
+    {
+        if (_currentFilePath == null) return;
+        TxtCleanFileName.Text =
+            Path.GetFileNameWithoutExtension(_currentFilePath) +
+            ".clean" +
+            Path.GetExtension(_currentFilePath);
+    }
+
+    private void OnOriginalTextChanged(object? sender, EventArgs e)
+    {
+        var text = EditorOriginal.Text;
+        if (string.IsNullOrEmpty(text))
+        {
+            ResetStats();
+            return;
+        }
+        var bytes = Encoding.UTF8.GetByteCount(text);
+        TxtOriginalSize.Text = FormatSize(bytes);
+        TxtOriginalSizeStat.Text = FormatSize(bytes);
+    }
+
+    private void BtnOpenFile_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Abrir arquivo",
+            Filter = "Todos suportados|*.lua;*.luau;*.py;*.pyw;*.js;*.mjs;*.ts;*.mts;*.cs;*.sql" +
+                     "|Lua (*.lua;*.luau)|*.lua;*.luau" +
+                     "|Python (*.py;*.pyw)|*.py;*.pyw" +
+                     "|JavaScript (*.js;*.mjs)|*.js;*.mjs" +
+                     "|TypeScript (*.ts;*.mts)|*.ts;*.mts" +
+                     "|C# (*.cs)|*.cs" +
+                     "|SQL (*.sql)|*.sql" +
+                     "|Todos os arquivos (*.*)|*.*",
+        };
+
+        if (dialog.ShowDialog() != true) return;
+
+        try
+        {
+            string ext = Path.GetExtension(dialog.FileName);
+            if (LanguageDetector.TryDetect(ext, out CoreLanguage detected))
+            {
+                _selectedLanguage = detected;
+                SyncLanguageSelector(detected);
+            }
+
+            string source = File.ReadAllText(dialog.FileName, Encoding.UTF8);
+            _currentFilePath = dialog.FileName;
+            EditorOriginal.Text = source;
+            TxtOriginalFileName.Text = Path.GetFileName(dialog.FileName);
+            TxtCleanFileName.Text = Path.GetFileNameWithoutExtension(dialog.FileName) +
+                                    ".clean" + ext;
+            SetStatus("Arquivo carregado", Path.GetFileName(dialog.FileName), "#4CAF50");
+            TxtHint.Text = "Clique em 'Remover ComentÃ¡rios' para processar o arquivo.";
+        }
+        catch (Exception ex)
+        {
+            SetStatus("Erro", ex.Message, "#F44336");
+        }
+    }
+
+    private void SyncLanguageSelector(CoreLanguage language)
+    {
+        for (int i = 0; i < LanguageSelector.Items.Count; i++)
+        {
+            if (LanguageSelector.Items[i] is LanguageItem item && item.Language == language)
+            {
+                LanguageSelector.SelectedIndex = i;
+                return;
+            }
+        }
+    }
+
+    private void BtnPasteCode_Click(object sender, RoutedEventArgs e)
+    {
+        string text = Clipboard.GetText();
+        if (string.IsNullOrEmpty(text))
+        {
+            SetStatus("Ãrea de transferÃªncia vazia", "Nada para colar.", "#F44336");
+            return;
+        }
+        EditorOriginal.Text = text;
+        _currentFilePath = null;
+        TxtOriginalFileName.Text = "clipboard";
+        TxtCleanFileName.Text = "clipboard.clean";
+        SetStatus("CÃ³digo colado", "Pronto para processar.", "#4CAF50");
+        TxtHint.Text = "Clique em 'Remover ComentÃ¡rios' para processar o cÃ³digo.";
+    }
+
+    private void BtnProcess_Click(object sender, RoutedEventArgs e)
+    {
+        string source = EditorOriginal.Text;
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            SetStatus("Sem conteÃºdo", "Abra um arquivo ou cole cÃ³digo primeiro.", "#F44336");
+            return;
+        }
+
+        try
+        {
+            SetStatus("Processando...", "Removendo comentÃ¡rios...", "#4A90D9");
+            var stripper = CommentStripperFactory.Get(_selectedLanguage);
+            StripResult result = stripper.Strip(source);
+            _cleanedSource = result.CleanedSource;
+            EditorClean.Text = _cleanedSource;
+
+            long originalBytes = Encoding.UTF8.GetByteCount(source);
+            long cleanBytes = Encoding.UTF8.GetByteCount(_cleanedSource);
+            double reduction = originalBytes > 0
+                ? (1.0 - (double)cleanBytes / originalBytes) * 100.0
+                : 0;
+
+            TxtCommentsRemoved.Text = result.CommentsRemoved.ToString();
+            TxtOriginalSizeStat.Text = FormatSize(originalBytes);
+            TxtCleanSizeStat.Text = FormatSize(cleanBytes);
+            TxtReduction.Text = $"{reduction:F2}%";
+            TxtCleanSize.Text = FormatSize(cleanBytes);
+
+            SetStatus("ConcluÃ­do",
+                $"{result.CommentsRemoved} comentÃ¡rio(s) removido(s) â€” {LanguageDetector.DisplayName(_selectedLanguage)}",
+                "#4CAF50");
+            TxtHint.Text = "Processamento concluÃ­do. Use 'Salvar cÃ³digo' ou 'Copiar cÃ³digo'.";
+        }
+        catch (Exception ex)
+        {
+            SetStatus("Erro", ex.Message, "#F44336");
+        }
+    }
+
+    private void BtnCopyCode_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_cleanedSource))
+        {
+            SetStatus("Sem cÃ³digo limpo", "Processe o cÃ³digo primeiro.", "#F44336");
+            return;
+        }
+        Clipboard.SetText(_cleanedSource);
+        SetStatus("Copiado", "CÃ³digo limpo copiado para a Ã¡rea de transferÃªncia.", "#4CAF50");
+    }
+
+    private void BtnSaveCode_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_cleanedSource))
+        {
+            SetStatus("Sem cÃ³digo limpo", "Processe o cÃ³digo primeiro.", "#F44336");
+            return;
+        }
+
+        string defaultName = "clean.lua";
+        if (_currentFilePath != null)
+        {
+            string dir = Path.GetDirectoryName(_currentFilePath) ?? ".";
+            string nameNoExt = Path.GetFileNameWithoutExtension(_currentFilePath);
+            string ext = Path.GetExtension(_currentFilePath);
+            defaultName = Path.Combine(dir, $"{nameNoExt}.clean{ext}");
+        }
+
+        var dialog = new SaveFileDialog
+        {
+            Title = "Salvar cÃ³digo limpo",
+            Filter = "Todos os arquivos (*.*)|*.*",
+            FileName = Path.GetFileName(defaultName),
+            InitialDirectory = _currentFilePath != null
+                ? Path.GetDirectoryName(_currentFilePath)
+                : null,
+        };
+
+        if (dialog.ShowDialog() != true) return;
+
+        try
+        {
+            File.WriteAllText(dialog.FileName, _cleanedSource, Encoding.UTF8);
+            SetStatus("Salvo", Path.GetFileName(dialog.FileName), "#4CAF50");
+        }
+        catch (Exception ex)
+        {
+            SetStatus("Erro ao salvar", ex.Message, "#F44336");
+        }
+    }
+
+    private void BtnClearAll_Click(object sender, RoutedEventArgs e)
+    {
+        EditorOriginal.Text = string.Empty;
+        EditorClean.Text = string.Empty;
+        _cleanedSource = null;
+        _currentFilePath = null;
+        TxtOriginalFileName.Text = string.Empty;
+        TxtCleanFileName.Text = string.Empty;
+        TxtOriginalSize.Text = string.Empty;
+        TxtCleanSize.Text = string.Empty;
+        ResetStats();
+        SetStatus("Pronto", "Aguardando cÃ³digo...", "#4CAF50");
+        TxtHint.Text = "Cole seu cÃ³digo ou abra um arquivo .lua / .luau para comeÃ§ar a limpeza.";
+    }
+
+    private void BtnSettings_Click(object sender, RoutedEventArgs e)
+    {
+        MessageBox.Show("ConfiguraÃ§Ãµes disponÃ­veis em versÃµes futuras.", "ConfiguraÃ§Ãµes",
+            MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void BtnHelp_Click(object sender, RoutedEventArgs e)
+    {
+        MessageBox.Show(
+            "LuaCleaner v1.0.0\n\n" +
+            "Remove todos os comentÃ¡rios de cÃ³digo com seguranÃ§a.\n\n" +
+            "Linguagens suportadas:\n" +
+            "  â€¢ Lua / Luau\n" +
+            "  â€¢ Python\n" +
+            "  â€¢ JavaScript\n" +
+            "  â€¢ TypeScript\n" +
+            "  â€¢ C#\n" +
+            "  â€¢ SQL\n\n" +
+            "â€¢ Abra um arquivo ou cole cÃ³digo diretamente\n" +
+            "â€¢ Selecione a linguagem\n" +
+            "â€¢ Clique em 'Remover ComentÃ¡rios'\n" +
+            "â€¢ Copie ou salve o resultado\n\n" +
+            "O arquivo original nunca Ã© modificado.",
+            "Ajuda â€” LuaCleaner",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
+    }
+
+    private void SetStatus(string title, string detail, string colorHex)
+    {
+        TxtStatusTitle.Text = title;
+        TxtStatusDetail.Text = detail;
+        var color = (Color)ColorConverter.ConvertFromString(colorHex);
+        TxtStatusTitle.Foreground = new SolidColorBrush(color);
+        StatusDot.Fill = new SolidColorBrush(color);
+    }
+
+    private void ResetStats()
+    {
+        TxtCommentsRemoved.Text = "0";
+        TxtOriginalSizeStat.Text = "â€”";
+        TxtCleanSizeStat.Text = "â€”";
+        TxtReduction.Text = "â€”";
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F2} KB";
+        return $"{bytes / (1024.0 * 1024.0):F2} MB";
+    }
+}
+
+internal sealed class LanguageItem
+{
+    public CoreLanguage Language { get; }
+    private readonly string _label;
+    public LanguageItem(CoreLanguage language, string label) { Language = language; _label = label; }
+    public override string ToString() => _label;
+}

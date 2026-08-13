@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/Tests/">
+    <Project Path="Tests/LuaCleaner.Tests/LuaCleaner.Tests.csproj" />
+  </Folder>
+  <Project Path="LuaCleaner.CLI/LuaCleaner.CLI.csproj" />
+  <Project Path="LuaCleaner.Core/LuaCleaner.Core.csproj" />
+  <Project Path="LuaCleaner.IO/LuaCleaner.IO.csproj" />
+  <Project Path="LuaCleaner.UI/LuaCleaner.UI.csproj" />
+</Solution>
