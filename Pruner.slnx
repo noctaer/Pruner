@@ -1,0 +1,9 @@
+﻿<Solution>
+  <Folder Name="/Tests/">
+    <Project Path="Tests/Pruner.Tests/Pruner.Tests.csproj" />
+  </Folder>
+  <Project Path="Pruner.CLI/Pruner.CLI.csproj" />
+  <Project Path="Pruner.Core/Pruner.Core.csproj" />
+  <Project Path="Pruner.IO/Pruner.IO.csproj" />
+  <Project Path="Pruner.UI/Pruner.UI.csproj" />
+</Solution>

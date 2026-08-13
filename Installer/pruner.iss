@@ -3,10 +3,10 @@
 #define AppPublisher "Nocta Studios"
 #define AppURL "https://github.com/NoctaStudios/pruner"
 #define UIExe "Pruner.exe"
-#define CLIExe "LuaCleaner.exe"
-#define UISource "..\LuaCleaner.UI\bin\Release\net10.0-windows\win-x64\publish\"
-#define CLISource "..\LuaCleaner.CLI\bin\Release\net10.0\win-x64\publish\"
-#define IconFile "..\LuaCleaner.UI\Assets\app.ico"
+#define CLIExe "Pruner.exe"
+#define UISource "..\Pruner.UI\bin\Release\net10.0-windows\win-x64\publish\"
+#define CLISource "..\Pruner.CLI\bin\Release\net10.0\win-x64\publish\"
+#define IconFile "..\Pruner.UI\Assets\app.ico"
 
 [Setup]
 AppId={{A3F2C1D4-7B8E-4F2A-9C3D-1E5F6A7B8C9D}
