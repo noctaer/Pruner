@@ -12,7 +12,7 @@ Windows 10/11 x64. No dependencies required.
 
 AI-generated code tends to be verbose with comments — banners, separators, inline explanations, decorative blocks. Pruner strips all of them in a single pass, leaving only clean code.
 
-**What Pruner is:** a comment stripper.
+**What Pruner is:** a comment stripper.  
 **What Pruner is not:** a formatter, minifier, or obfuscator.
 
 ## Supported languages
@@ -36,6 +36,7 @@ pruner-cli file.cs
 pruner-cli src/ --recursive
 pruner-cli file.py --dry-run
 pruner-cli file.js --lang javascript
+```
 
 ## Architecture
 
@@ -46,16 +47,12 @@ Pruner.CLI       — command-line interface
 Pruner.UI        — WPF desktop application
 Pruner.Launcher  — lightweight launcher in Program Files
 Tests            — 192 xUnit tests
-
 ```
 
 ## License
 
-See [LICENSE](https://claude.ai/chat/Installer/license.txt).
+See [LICENSE](Installer/license.txt).
 
 ---
 
 Made by [Nocta Studios](https://github.com/noctaer)
-
-```
-```
