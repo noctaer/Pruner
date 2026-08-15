@@ -8,6 +8,12 @@ Comment stripper for 25 programming languages. Removes all comments from source 
 
 Windows 10/11 x64. No dependencies required.
 
+---
+
+![Pruner UI](docs/screenshot-editor.png)
+
+---
+
 ## What it does
 
 AI-generated code tends to be verbose with comments — banners, separators, inline explanations, decorative blocks. Pruner strips all of them in a single pass, leaving only clean code.
@@ -21,12 +27,11 @@ Lua/Luau, Python, JavaScript, TypeScript, C#, SQL, Ruby, Go, Kotlin, Swift, Bash
 
 ## Features
 
-- GUI with side-by-side diff (original vs clean)
-- Syntax highlighting for all 25 languages
+- GUI with side-by-side diff and syntax highlighting
 - Batch processing with optional overwrite mode
-- CLI for terminal and scripting workflows
-- Recent files history
+- CLI with glob, recursive, and dry-run support
 - Drag and drop support
+- Recent files history
 - 192 automated tests
 
 ## CLI usage
